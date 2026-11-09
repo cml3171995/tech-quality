@@ -6,6 +6,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>问题跟踪清单 · 检查整改闭环</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <style>
 :root{--blue:#005BAC;--red:#c0392b;--org:#e67e22;--grn:#27ae60}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -67,6 +68,15 @@ body>*{flex-shrink:0}
 .pinrow input{flex:1;text-align:center;font-size:18px;letter-spacing:6px}
 #toast{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);background:rgba(20,40,60,.88);color:#fff;font-size:13px;padding:9px 18px;border-radius:999px;z-index:99;display:none;max-width:86%;text-align:center}
 .loadbar{text-align:center;font-size:12px;color:#8aa0b5;padding:8px 0}
+.mini{border:0;background:#eaf2fa;color:var(--blue);font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px}
+.pv{border:1px solid #d5dee8;border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:8px;background:#f8fbfe}
+.pv .hd{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px}
+.pv .hd b{color:var(--blue)}
+.pv textarea{width:100%;border:1px solid #e0e8f0;border-radius:8px;font-size:12.5px;padding:6px 8px;min-height:52px;line-height:1.5;font-family:inherit;resize:vertical;background:#fff;color:#33475c}
+.pv .row{display:flex;gap:6px;align-items:flex-start;padding:6px 0;border-top:1px dashed #e5edf5}
+.pv .row input[type=checkbox]{width:17px;height:17px;flex:none;margin-top:3px}
+.pv .num{font-size:11px;color:#8aa0b5;flex:none;margin-top:8px;width:22px;text-align:right}
+.hint{font-size:11.5px;color:#7a8ba0;line-height:1.6;margin-bottom:8px}
 footer{text-align:center;padding:4px 14px calc(16px + env(safe-area-inset-bottom))}
 footer .co{font-size:12px;color:#33517a;font-weight:600;letter-spacing:1px}
 footer .dept{font-size:10.5px;color:#7a8ba0;margin-top:3px;letter-spacing:2px}
@@ -96,7 +106,9 @@ footer .dept{font-size:10.5px;color:#7a8ba0;margin-top:3px;letter-spacing:2px}
         <select id="fGrade" onchange="onFilter()"><option value="">全部分级</option><option>Ⅰ级</option><option>Ⅱ级</option><option>Ⅲ级</option></select>
         <select id="fSt" onchange="onFilter()"><option value="">全部状态</option><option>待整改</option><option>整改中</option><option>已整改</option></select>
       </div>
-      <div class="meta"><span id="showN"></span><span>数据同步于 <span id="syncT">—</span></span></div>
+      <div class="meta"><span id="showN"></span><span style="display:flex;gap:6px;align-items:center">同步于 <span id="syncT">—</span>
+        <button class="mini" onclick="importWord()">导入Word</button>
+        <button class="mini" onclick="doExport()">导出Excel</button></span></div>
     </div>
   </div>
   <div class="list" id="list"></div>
@@ -294,6 +306,96 @@ function doExport(){
     var txt=rows.map(function(r){return r.join('\t')}).join('\n');
     if(navigator.clipboard)navigator.clipboard.writeText(txt).then(function(){toast('已复制表格文本，可粘贴到Excel')},function(){toast('复制失败')});
   }
+}
+
+/* ===== Word导入 ===== */
+function importWord(){
+  needPin(function(){
+    openSheet('<h3>导入检查记录 Word</h3>'
+      +'<div class="hint">支持手机中微信/QQ接收的检查记录表（.docx）。自动识别项目名称、整改单编号、检查日期，按编号拆分问题，导入前可预览修改。</div>'
+      +'<div class="frow"><input type="file" id="dfile" accept=".docx" style="font-size:13px"></div>'
+      +'<div id="parseArea"></div>'
+      +'<button class="btn gray" style="width:100%;padding:10px;margin-top:6px" onclick="closeSheet()">关 闭</button>');
+    $('dfile').addEventListener('change',onDocFile);
+  });
+}
+async function onDocFile(ev){
+  var f=ev.target.files[0];if(!f)return;
+  if(!/\.docx$/i.test(f.name))return toast('请选择 .docx 文件（旧版 .doc 请先转存）');
+  $('parseArea').innerHTML='<div class="loadbar">解析中…</div>';
+  try{
+    var ab=await f.arrayBuffer();
+    var res=await mammoth.convertToHtml({arrayBuffer:ab});
+    window._imp=parseDocHtml(res.value);
+    if(!window._imp.items.length){$('parseArea').innerHTML='<div class="empty">未识别到问题内容，请检查文档格式</div>';return;}
+    renderImport();
+  }catch(e){$('parseArea').innerHTML='';toast('解析失败：请确认是 .docx 格式');}
+}
+function parseDocHtml(hxml){
+  var div=document.createElement('div');div.innerHTML=hxml;
+  var full=(div.innerText||div.textContent||'').replace(/\u00a0/g,' ');
+  var out={proj:'',no:'',date:'',items:[]},m;
+  if(m=full.match(/项目名称[：:]\s*([^\n\s]+)/))out.proj=m[1].trim();
+  if(m=full.match(/整改单编号[：:]\s*([A-Za-z]{2,6}\d{6,10})/))out.no=m[1].toUpperCase();
+  if(!out.no&&(m=full.match(/[A-Z]{2,4}\d{8}/)))out.no=m[0];
+  if(m=full.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/))out.date=m[1]+'/'+pad(m[2])+'/'+pad(m[3]);
+  if(!out.date&&(m=full.match(/(\d{4})[-年](\d{1,2})[-月](\d{1,2})/)))out.date=m[1]+'/'+pad(m[2])+'/'+pad(m[3]);
+  var body=full,i1=body.search(/检查情况/);
+  if(i1>=0)body=body.slice(i1);
+  var i2=body.search(/检查部门|检查人|整改完成期限|指定验证人|接收人/);
+  if(i2>0)body=body.slice(0,i2);
+  body=body.replace(/^检查情况[：:]?/,'').replace(/^[:：\s]+/,'');
+  var cur=null,lines=body.split(/\n/);
+  for(var i=0;i<lines.length;i++){
+    var L=lines[i].trim();if(!L)continue;
+    var mm=L.match(/^(?:第)?(\d{1,2})(?:[、\.．,，]|条|\)|）)\s*/);
+    if(mm&&L.replace(mm[0],'').trim().length>1){if(cur)out.items.push(cur);cur=L.replace(mm[0],'').trim();}
+    else if(cur!==null)cur+=(cur?'\n':'')+L;
+  }
+  if(cur)out.items.push(cur);
+  if(!out.items.length&&body.trim().length>4)out.items=[body.trim()];
+  return out;
+}
+function pad(s){s=String(s);return s.length<2?'0'+s:s}
+function renderImport(){
+  var im=window._imp;
+  var html='<div class="pv"><div class="hd">识别到 <b>'+im.items.length+'</b> 个问题</div>'
+    +'<div class="f2"><div class="frow"><label>项目名称</label><input id="iProj" value="'+esc(im.proj)+'"></div>'
+    +'<div class="frow"><label>检查日期</label><input id="iDate" value="'+esc(im.date)+'"></div></div>'
+    +'<div class="f2"><div class="frow"><label>检查单编号</label><input id="iNo" value="'+esc(im.no)+'"></div>'
+    +'<div class="frow"><label>问题分级</label><select id="iGrade">'+opt(GRADES,'Ⅲ级')+'</select></div></div>'
+    +'<div class="f2"><div class="frow"><label>验证情况</label><select id="iSt">'+opt(STS,'待整改')+'</select></div>'
+    +'<div class="frow"><label>验证人</label><input id="iVer" placeholder="选填"></div></div>'
+    +'<div class="f2"><div class="frow"><label>分类</label><select id="iCat">'+opt(CATS,'质量管理')+'</select></div>'
+    +'<div class="frow"><label>二级分类</label><select id="iSub">'+opt(SUBS,'现场实体质量')+'</select></div></div>'
+    +'<div style="font-size:11.5px;color:#5b7186;margin:2px 0 6px">以下条目可勾选、可修改描述：</div>';
+  im.items.forEach(function(t,i){
+    html+='<div class="row"><input type="checkbox" class="ick" checked><span class="num">'+(i+1)+'</span>'
+      +'<textarea class="idesc">'+esc(t)+'</textarea></div>';
+  });
+  html+='</div><div style="display:flex;gap:8px"><button class="btn gray" style="flex:1" onclick="importWord()">重选文件</button>'
+    +'<button class="btn green" style="flex:2" onclick="doImport()">确认导入勾选项</button></div>';
+  $('parseArea').innerHTML=html;
+}
+async function doImport(){
+  var im=window._imp,proj=$('iProj').value.trim(),date=$('iDate').value.trim(),no=$('iNo').value.trim();
+  if(!proj)return toast('请填写项目名称');
+  if(!date)return toast('请填写检查日期');
+  var rows=document.querySelectorAll('#parseArea .row'),add=0,skip=0;
+  rows.forEach(function(rw){
+    if(!rw.querySelector('.ick').checked)return;
+    var desc=rw.querySelector('.idesc').value.trim();if(!desc)return;
+    var dup=DATA.issues.some(function(a){return a.no===no&&a.desc===desc});
+    if(dup){skip++;return;}
+    DATA.issues.push({id:DATA.nextId++,date:date,no:no,proj:proj,stage:'',
+      cat:$('iCat').value,sub:$('iSub').value,grade:$('iGrade').value,desc:desc,
+      status:$('iSt').value,verifier:$('iVer').value.trim()});
+    add++;
+  });
+  if(!add)return toast('没有新增（'+(skip?skip+'条与现有重复':'未勾选')+'）');
+  toast('正在同步 '+add+' 条…',5000);
+  if(await save()){closeSheet();buildProjFilter();apply();toast('已导入 '+add+' 条'+(skip?'，跳过重复 '+skip+' 条':''));}
+  else toast('同步失败，请重试');
 }
 
 /* ===== 启动 ===== */
