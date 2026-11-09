@@ -333,7 +333,10 @@ async function onDocFile(ev){
 }
 function parseDocHtml(hxml){
   var div=document.createElement('div');div.innerHTML=hxml;
+  div.style.cssText='position:absolute;left:-9999px;top:0;width:600px';
+  document.body.appendChild(div); // innerText 仅在已渲染元素上才保留块级换行
   var full=(div.innerText||div.textContent||'').replace(/\u00a0/g,' ');
+  document.body.removeChild(div);
   var out={proj:'',no:'',date:'',items:[]},m;
   if(m=full.match(/项目名称[：:]\s*([^\n\s]+)/))out.proj=m[1].trim();
   if(m=full.match(/整改单编号[：:]\s*([A-Za-z]{2,6}\d{6,10})/))out.no=m[1].toUpperCase();
