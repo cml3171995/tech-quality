@@ -376,6 +376,7 @@ function parseDocText(full,fname){
     L=seg[i].trim();if(!L)continue;
     if(L.indexOf('\u0007')>=0)continue;
     if(L.length<8)continue;
+    if(L.length<25&&/记录表/.test(L))continue; // 文档标题行
     var priv=0,j,c;for(j=0;j<L.length;j++){c=L.charCodeAt(j);if(c>=0xe000&&c<=0xf8ff)priv++;}
     if(priv/L.length>0.2)continue;
     if(/四建设有限公司|整改情况说明|^资料问题[：:]?$/.test(L))continue;
