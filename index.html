@@ -7,13 +7,13 @@
 <title>青岛公司技术质量 · 应用中心</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { height:100%; }
   body {
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
     background:linear-gradient(180deg,#eaf1f8 0%,#f4f7fb 40%,#eef3f9 100%);
     min-height:100vh; color:#1f2d3d;
     display:flex; flex-direction:column;
   }
+  body > * { flex-shrink:0; }
   /* ── 顶部 logo 横幅 ── */
   .brandbar { background:#fff; padding:10px 14px 8px; box-shadow:0 1px 6px rgba(0,60,120,.08); position:relative; z-index:2; }
   .brandbar img { display:block; width:100%; max-width:520px; margin:0 auto; }
@@ -43,7 +43,7 @@
   }
   .hero .cap::before,.hero .cap::after { content:""; flex:1; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent); }
   /* ── 卡片区 ── */
-  .wrap { flex:1; max-width:560px; width:100%; margin:0 auto; padding:0 16px; }
+  .wrap { flex:1 0 auto; max-width:560px; width:100%; margin:0 auto; padding:0 16px; }
   .cards { margin-top:-46px; position:relative; z-index:3; padding-bottom:26px; }
   .card {
     display:flex; align-items:center; gap:14px;
