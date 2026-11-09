@@ -312,8 +312,8 @@ function doExport(){
 function importWord(){
   needPin(function(){
     openSheet('<h3>导入检查记录 Word</h3>'
-      +'<div class="hint">支持手机中微信/QQ接收的检查记录表（.docx）。自动识别项目名称、整改单编号、检查日期，按编号拆分问题，导入前可预览修改。</div>'
-      +'<div class="frow"><input type="file" id="dfile" accept=".docx" style="font-size:13px"></div>'
+      +'<div class="hint">支持检查记录表 Word（.doc / .docx）。自动识别检查日期、验证人、项目名（取自文件名），按段落/编号拆分问题，导入前可预览修改、勾选。</div>'
+      +'<div class="frow"><input type="file" id="dfile" accept=".doc,.docx" style="font-size:13px"></div>'
       +'<div id="parseArea"></div>'
       +'<button class="btn gray" style="width:100%;padding:10px;margin-top:6px" onclick="closeSheet()">关 闭</button>');
     $('dfile').addEventListener('change',onDocFile);
@@ -321,15 +321,73 @@ function importWord(){
 }
 async function onDocFile(ev){
   var f=ev.target.files[0];if(!f)return;
-  if(!/\.docx$/i.test(f.name))return toast('请选择 .docx 文件（旧版 .doc 请先转存）');
-  $('parseArea').innerHTML='<div class="loadbar">解析中…</div>';
+  $('parseArea').innerHTML='<div class="loadbar">解析中…大文件请稍候</div>';
   try{
-    var ab=await f.arrayBuffer();
-    var res=await mammoth.convertToHtml({arrayBuffer:ab});
-    window._imp=parseDocHtml(res.value);
+    var ab=await f.arrayBuffer(),text;
+    if(/\.docx$/i.test(f.name)){
+      var res=await mammoth.convertToHtml({arrayBuffer:ab});
+      text=toText(res.value);
+    }else{
+      text=scanDocText(ab); // 旧版 .doc 二进制：扫描 UTF-16LE 可读片段
+    }
+    window._imp=parseDocText(text,f.name);
     if(!window._imp.items.length){$('parseArea').innerHTML='<div class="empty">未识别到问题内容，请检查文档格式</div>';return;}
     renderImport();
-  }catch(e){$('parseArea').innerHTML='';toast('解析失败：请确认是 .docx 格式');}
+  }catch(e){$('parseArea').innerHTML='';toast('解析失败：请确认是 Word 文件');}
+}
+function toText(hxml){
+  var div=document.createElement('div');div.innerHTML=hxml;
+  div.style.cssText='position:absolute;left:-9999px;top:0;width:600px';
+  document.body.appendChild(div);
+  var t=div.innerText||div.textContent||'';
+  document.body.removeChild(div);return t;
+}
+/* 旧版.doc：直接扫描二进制中的 UTF-16LE 可读文本段 */
+function scanDocText(ab){
+  var u8=new Uint8Array(ab),out=[],cur=[];
+  for(var i=0;i+1<u8.length;i+=2){
+    var c=u8[i]|(u8[i+1]<<8);
+    var ok=(c>=0x20&&c<=0x7e)||c===0x0d||c===0x07||c===0x09
+      ||(c>=0x4e00&&c<=0x9fa5)||(c>=0x3000&&c<=0x303f)||(c>=0xff00&&c<=0xffef)
+      ||(c>=0x2160&&c<=0x217f)||(c>=0x2460&&c<=0x24ff)||(c>=0x2010&&c<=0x2027);
+    if(ok)cur.push(c);
+    else{if(cur.length>=6)out.push(String.fromCharCode.apply(null,cur));cur=[];}
+  }
+  if(cur.length>=6)out.push(String.fromCharCode.apply(null,cur));
+  return out.join('\n');
+}
+function parseDocText(full,fname){
+  var out={proj:'',no:'',date:'',verifier:'',items:[]},m;
+  full=full.replace(/崔茂林/g,'');
+  if(m=full.match(/检查日期[\u0007：:]?\s*(\d{4})年(\d{1,2})月(\d{1,2})日/))out.date=m[1]+'/'+pad(m[2])+'/'+pad(m[3]);
+  if(!out.date&&(m=full.match(/(\d{4})[-年]\s*(\d{1,2})[-月]\s*(\d{1,2})/)))out.date=m[1]+'/'+pad(m[2])+'/'+pad(m[3]);
+  if(m=full.match(/指定验证人[\u0007：:]?\s*([^\u0007\r\n：:]{2,8})/))out.verifier=m[1].trim();
+  if(m=full.match(/整改单编号[\u0007：:]?\s*([A-Za-z]{2,6}\d{6,10})/))out.no=m[1].toUpperCase();
+  if(!out.no&&(m=full.match(/[A-Z]{2,4}\d{8}/)))out.no=m[0];
+  if(m=full.match(/项目名称[\u0007：:]?\s*([^\u0007\r\n\s]{4,20})/))out.proj=m[1].trim();
+  if(!out.proj&&fname){var parts=fname.replace(/\.(docx?|DOCX?)$/,'').split(/[-_]/);
+    out.proj=(parts[parts.length-1]||'').replace(/\(\d+\)$/,'').trim();}
+  var end=full.search(/检查部门|整改情况说明/);if(end<0)end=full.length;
+  var seg=full.slice(0,end).split(/[\r\n]+/);
+  var pre=[],nNum=0,i,L;
+  for(i=0;i<seg.length;i++){L=seg[i].trim();if(!L)continue;if(/^\d{1,2}[、\.．]/.test(L)||/^（\d{1,2}）/.test(L))nNum++;}
+  var numbered=nNum>=2, sawReq=false;
+  for(i=0;i<seg.length;i++){
+    L=seg[i].trim();if(!L)continue;
+    if(L.indexOf('\u0007')>=0)continue;
+    if(L.length<8)continue;
+    var priv=0,j,c;for(j=0;j<L.length;j++){c=L.charCodeAt(j);if(c>=0xe000&&c<=0xf8ff)priv++;}
+    if(priv/L.length>0.2)continue;
+    if(/四建设有限公司|整改情况说明|^资料问题[：:]?$/.test(L))continue;
+    if(/上述问题|如下要求|暴露出项目/.test(L))sawReq=true;
+    var ck=!sawReq;
+    var mm=L.match(/^(?:第)?(\d{1,2})(?:[、\.．,，]|条|\)|）)\s*/);
+    if(mm&&L.replace(mm[0],'').trim().length>1)pre.push({t:L.replace(mm[0],'').trim(),ck:ck});
+    else if(numbered&&pre.length)pre[pre.length-1].t+='\n'+L;
+    else pre.push({t:L,ck:ck});
+  }
+  out.items=pre;
+  return out;
 }
 function parseDocHtml(hxml){
   var div=document.createElement('div');div.innerHTML=hxml;
@@ -362,23 +420,28 @@ function parseDocHtml(hxml){
 function pad(s){s=String(s);return s.length<2?'0'+s:s}
 function renderImport(){
   var im=window._imp;
-  var html='<div class="pv"><div class="hd">识别到 <b>'+im.items.length+'</b> 个问题</div>'
+  var html='<div class="pv"><div class="hd">识别到 <b>'+im.items.length+'</b> 条 <button class="mini" onclick="toggleAll()">全选/全不选</button></div>'
     +'<div class="f2"><div class="frow"><label>项目名称</label><input id="iProj" value="'+esc(im.proj)+'"></div>'
     +'<div class="frow"><label>检查日期</label><input id="iDate" value="'+esc(im.date)+'"></div></div>'
     +'<div class="f2"><div class="frow"><label>检查单编号</label><input id="iNo" value="'+esc(im.no)+'"></div>'
     +'<div class="frow"><label>问题分级</label><select id="iGrade">'+opt(GRADES,'Ⅲ级')+'</select></div></div>'
     +'<div class="f2"><div class="frow"><label>验证情况</label><select id="iSt">'+opt(STS,'待整改')+'</select></div>'
-    +'<div class="frow"><label>验证人</label><input id="iVer" placeholder="选填"></div></div>'
+    +'<div class="frow"><label>验证人</label><input id="iVer" value="'+esc(im.verifier||'')+'" placeholder="选填"></div></div>'
     +'<div class="f2"><div class="frow"><label>分类</label><select id="iCat">'+opt(CATS,'质量管理')+'</select></div>'
     +'<div class="frow"><label>二级分类</label><select id="iSub">'+opt(SUBS,'现场实体质量')+'</select></div></div>'
     +'<div style="font-size:11.5px;color:#5b7186;margin:2px 0 6px">以下条目可勾选、可修改描述：</div>';
-  im.items.forEach(function(t,i){
-    html+='<div class="row"><input type="checkbox" class="ick" checked><span class="num">'+(i+1)+'</span>'
-      +'<textarea class="idesc">'+esc(t)+'</textarea></div>';
+  im.items.forEach(function(it,i){
+    html+='<div class="row"><input type="checkbox" class="ick"'+(it.ck?' checked':'')+'><span class="num">'+(i+1)+'</span>'
+      +'<textarea class="idesc">'+esc(it.t)+'</textarea></div>';
   });
   html+='</div><div style="display:flex;gap:8px"><button class="btn gray" style="flex:1" onclick="importWord()">重选文件</button>'
     +'<button class="btn green" style="flex:2" onclick="doImport()">确认导入勾选项</button></div>';
   $('parseArea').innerHTML=html;
+}
+function toggleAll(){
+  var boxes=document.querySelectorAll('#parseArea .ick');
+  var all=[].every.call(boxes,function(b){return b.checked});
+  boxes.forEach(function(b){b.checked=!all});
 }
 async function doImport(){
   var im=window._imp,proj=$('iProj').value.trim(),date=$('iDate').value.trim(),no=$('iNo').value.trim();
