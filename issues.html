@@ -104,7 +104,7 @@ footer .dept{font-size:10.5px;color:#7a8ba0;margin-top:3px;letter-spacing:2px}
       <div class="srow">
         <select id="fProj" onchange="onFilter()"><option value="">全部项目</option></select>
         <select id="fGrade" onchange="onFilter()"><option value="">全部分级</option><option>Ⅰ级</option><option>Ⅱ级</option><option>Ⅲ级</option></select>
-        <select id="fSt" onchange="onFilter()"><option value="">全部状态</option><option>待整改</option><option>整改中</option><option>已整改</option></select>
+        <select id="fSt" onchange="onFilter()"><option>未整改</option><option value="">全部状态</option><option>待整改</option><option>整改中</option><option>已整改</option></select>
       </div>
       <div class="meta"><span id="showN"></span><span style="display:flex;gap:6px;align-items:center">同步于 <span id="syncT">—</span>
         <button class="mini" onclick="importWord()">导入Word</button>
@@ -176,7 +176,7 @@ function filtered(){
   return DATA.issues.filter(function(x){
     if(p&&x.proj!==p)return false;
     if(g&&('Ⅰ级 Ⅱ级 Ⅲ级'.indexOf(x.grade)>=0?('　'+x.grade):x.grade)!==g&&x.grade!==g)return false;
-    if(s&&x.status!==s)return false;
+    if(s){if(s==="未整改"){if(x.status==="已整改")return false;}else if(x.status!==s)return false;}
     if(q){var hay=(x.proj+' '+x.no+' '+x.desc+' '+x.cat+' '+x.sub+' '+x.verifier).toLowerCase();if(hay.indexOf(q)<0)return false;}
     return true;
   }).sort(function(a,b){return (b.date||'').localeCompare(a.date||'')||(b.id-a.id)});
