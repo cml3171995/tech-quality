@@ -471,6 +471,7 @@ function renderMap(reg){
   var pts=[];
   reg.forEach(function(pj){
     if(pj.lat==null||pj.lon==null)return;
+    if(/测试/.test(pj.name||'')||pj.code==='CS00001')return;
     var nm=(pj.name||'').replace(/（[^）]*）|\([^)]*\)/g,'').replace(/项目$/,'');
     var m=L.circleMarker([pj.lat,pj.lon],{radius:7,color:'#fff',weight:2,fillColor:'#005BAC',fillOpacity:.95}).addTo(MAP);
     m.bindTooltip(nm,{permanent:true,direction:'top',offset:[0,-7],className:'mtip'});
