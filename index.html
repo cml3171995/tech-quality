@@ -479,7 +479,7 @@ function renderMap(reg){
     pts.push([pj.lat,pj.lon]);
   });
   if(!pts.length)return;
-  var qd=pts.filter(function(pt){return pt[1]>119.9}); // 默认聚焦青岛区域项目
+  var qd=pts.filter(function(pt){return pt[1]>119.5}); // 默认聚焦青岛区域项目（含董家口，寿光需缩小查看）
   MAP.fitBounds(qd.length?qd:pts,{padding:[30,30],maxZoom:11});
 }
 
