@@ -478,7 +478,9 @@ function renderMap(reg){
     m.bindPopup('<b>'+esc(pj.name||'')+'</b><br>'+esc(pj.addr||''));
     pts.push([pj.lat,pj.lon]);
   });
-  if(pts.length)MAP.fitBounds(pts,{padding:[28,28]});
+  if(!pts.length)return;
+  var qd=pts.filter(function(pt){return pt[1]>119.9}); // 默认聚焦青岛区域项目
+  MAP.fitBounds(qd.length?qd:pts,{padding:[30,30],maxZoom:11});
 }
 
 loadAll();
