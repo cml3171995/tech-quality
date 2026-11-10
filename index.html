@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
 <title>青岛公司技术质量 · 数据驾驶舱</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow-x:hidden} /* 禁止横向扩展，移动端视口不被撑宽 */
@@ -155,6 +156,14 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
 .gl{display:flex;gap:15px;margin-top:8px;font-size:11px;color:#5b7186;flex-wrap:wrap}
 .gl i{display:inline-block;width:9px;height:9px;border-radius:2.5px;margin-right:5px;vertical-align:-1px}
 .hfoot{font-size:10.5px;color:#a8b6c6;text-align:center;padding:6px 0 10px;letter-spacing:2px;line-height:1.9}
+/* 地图 */
+#mapBox{height:250px;border-radius:10px;border:1px solid #e0eaf4;overflow:hidden}
+.leaflet-container{background:#e8eef5;font:inherit}
+.leaflet-tile-pane{filter:saturate(.72) brightness(1.05) contrast(.96)}
+.leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.75)!important}
+.mtip{background:rgba(0,91,172,.94);color:#fff;border:1px solid rgba(255,255,255,.55);border-radius:7px;
+  font-size:11px;font-weight:600;padding:2px 8px;box-shadow:0 2px 8px rgba(0,60,120,.35)}
+.mtip::before{border-top-color:rgba(0,91,172,.94)}
 /* ═══ 手机端 ═══ */
 @media(max-width:819px){
   .app{display:block;height:auto;min-height:100vh;min-height:100dvh}
@@ -166,6 +175,7 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
   .tabbar{display:flex}
 }
 </style>
+<script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -225,6 +235,16 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
               </div>
             </div>
             <div class="hcard">
+              <div class="ctit"><i class="dot"></i>各项目问题分布</div>
+              <div id="bProj"></div>
+            </div>
+          </div>
+          <div class="hrow">
+            <div class="hcard">
+              <div class="ctit"><i class="dot"></i>在建项目分布<span class="src">来自试块自检·送检提醒</span></div>
+              <div id="mapBox"></div>
+            </div>
+            <div class="hcard">
               <div class="ctit"><i class="dot"></i>试压到期提醒<span class="src">来自试块自检·送检提醒</span></div>
               <div class="duegrid">
                 <div class="dg cool"><b id="d600">—</b><span>600℃·d待评估</span></div>
@@ -238,18 +258,15 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
           </div>
           <div class="hrow">
             <div class="hcard">
-              <div class="ctit"><i class="dot"></i>各项目问题分布</div>
-              <div id="bProj"></div>
-            </div>
-            <div class="hcard">
               <div class="ctit"><i class="dot"></i>月度检查问题趋势</div>
               <div class="monrow" id="bMon"></div>
             </div>
-          </div>
-          <div class="hcard">
-            <div class="ctit"><i class="dot"></i>问题分级构成</div>
-            <div class="gtr" id="bGrade"></div>
-            <div class="gl" id="gLg"></div>
+
+            <div class="hcard">
+              <div class="ctit"><i class="dot"></i>问题分级构成</div>
+              <div class="gtr" id="bGrade"></div>
+              <div class="gl" id="gLg"></div>
+            </div>
           </div>
           <div class="hfoot">中建八局第四建设有限公司青岛公司 · 技术质量部<br>数据来源：问题跟踪清单台账 · 同条件养护温度监测</div>
         </div>
@@ -257,7 +274,7 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
     </section>
 
     <section class="view" id="v-strength"><iframe class="frame" data-src="https://cml3171995.github.io/strength-date/"></iframe></section>
-    <section class="view" id="v-cd600"><iframe class="frame" data-src="https://cml3171995.github.io/cd600/"></iframe></section>
+    <section class="view" id="v-cd600"><iframe class="frame" data-src="https://cml3171995.github.io/cd600/dashboard.html#pin=8888"></iframe></section>
     <section class="view" id="v-jianjian"><iframe class="frame" data-src="https://cml3171995.github.io/jianjian-songjian/"></iframe></section>
     <section class="view" id="v-issues"><iframe class="frame" data-src="issues.html"></iframe></section>
   </main>
@@ -410,6 +427,7 @@ function refreshDue(){
     fetch('https://cml3171995.github.io/cd600/data.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json()})
   ]).then(function(rs){
     var REG=rs[0]||[],DATA=rs[1]||{projects:{}};
+    renderMap(REG);
     var n600=0,n7=0,n28=0,totp=0,list=[];
     REG.forEach(function(pj){
       var node=(DATA.projects||{})[pj.code]||{};
@@ -439,6 +457,28 @@ function refreshDue(){
   });
 }
 function reloadAll(){loadAll();refreshDue();}
+
+/* ── 在建项目分布地图（高德瓦片+发光标记） ── */
+var MAP=null;
+function renderMap(reg){
+  if(!window.L)return;
+  if(!MAP){
+    MAP=L.map('mapBox',{scrollWheelZoom:false,zoomControl:true});
+    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      {subdomains:'1234',attribution:'&copy; 高德地图',maxZoom:17}).addTo(MAP);
+  }
+  setTimeout(function(){MAP.invalidateSize()},250);
+  var pts=[];
+  reg.forEach(function(pj){
+    if(pj.lat==null||pj.lon==null)return;
+    var nm=(pj.name||'').replace(/（[^）]*）|\([^)]*\)/g,'').replace(/项目$/,'');
+    var m=L.circleMarker([pj.lat,pj.lon],{radius:7,color:'#fff',weight:2,fillColor:'#005BAC',fillOpacity:.95}).addTo(MAP);
+    m.bindTooltip(nm,{permanent:true,direction:'top',offset:[0,-7],className:'mtip'});
+    m.bindPopup('<b>'+esc(pj.name||'')+'</b><br>'+esc(pj.addr||''));
+    pts.push([pj.lat,pj.lon]);
+  });
+  if(pts.length)MAP.fitBounds(pts,{padding:[28,28]});
+}
 
 loadAll();
 refreshDue();
