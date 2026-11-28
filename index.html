@@ -45,7 +45,7 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
   background:rgba(255,255,255,.97);backdrop-filter:blur(8px);
   border-top:1px solid #d8e4f0;box-shadow:0 -4px 14px rgba(13,71,131,.08);
 }
-.titem{flex:1;border:0;background:none;cursor:pointer;color:#68798c;
+.titem{flex:1;border:0;background:none;cursor:pointer;color:#68798c;min-width:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   font-size:10px;letter-spacing:0;transition:color .2s}
 .titem svg{width:20px;height:20px}
@@ -405,6 +405,12 @@ main{flex:1;position:relative;overflow:hidden;background:#eef3f9}
   <button class="titem" data-v="issues">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M8.5 10.5l1.8 1.8 3.4-3.6M8.5 15.5h7"/></svg>
     问题跟踪</button>
+  <button class="titem" data-v="baseline">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l4.5-4 3 2.5L16.5 11l3.5 3.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1z"/></svg>
+    底线照片</button>
+  <button class="titem" data-v="sheets">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M9.5 9.5v10M15 9.5v10"/></svg>
+    在线表格</button>
 </nav>
 
 <script>
